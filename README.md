@@ -22,17 +22,13 @@ See the [project manifest](MANIFEST.md).
 
 ## Supported platforms
 
-WinSW 3 can run on Windows platforms with .NET Framework 4.6.1 or later versions installed.
-For systems without .NET Framework, the project provides native 64-bit and 32-bit executables based on .NET 7.
+WinSW 3 can run on Windows platforms with .NET 10 installed.
+The project provides native 64-bit, 32-bit and Arm64 executables based on .NET 10.
 
 More executables can be added upon request.
 
-[.NET Framework system requirements](https://docs.microsoft.com/dotnet/framework/get-started/system-requirements)\
-Preinstalled since Windows 10, version 1511 and Windows Server 2016.\
-Installable since Windows 7 SP1 and Windows Server 2008 R2 SP1.
-
-[.NET 7 system requirements](https://github.com/dotnet/core/blob/main/release-notes/7.0/supported-os.md)\
-Supported since Windows 10, version 1607, Windows Server (Core) 2012 R2 and Nano Server, version 1809.
+[.NET 10 system requirements](https://learn.microsoft.com/dotnet/core/release-notes/10.0/system-requirements)\
+Supported on Windows 10 and later, and Windows Server 2016 and later.
 
 ## Download
 

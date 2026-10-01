@@ -39,13 +39,14 @@ Error `1067` (“The process terminated unexpectedly”) usually means the wrapp
 - Check the Windows Event Log for errors reported by WinSW.
 - Run the executable manually under the same account and working directory as the service to reproduce the failure.
 
-## Not working on Windows 7
+## Not working on older Windows versions
 
-WinSW 3 can run on Windows 7 if you have .NET Framework 4.6.1 (or later) installed.
+WinSW 3 requires .NET 10, which supports Windows 10 and later.
+Windows 7 and Windows Server 2012 R2 are not supported.
 
 See:
 - Supported platforms in `README.md`
-- [.NET Framework system requirements](https://docs.microsoft.com/dotnet/framework/get-started/system-requirements)
+- [.NET 10 system requirements](https://learn.microsoft.com/dotnet/core/release-notes/10.0/system-requirements)
 
 ## See also
 

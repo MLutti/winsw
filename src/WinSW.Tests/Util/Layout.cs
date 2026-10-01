@@ -36,13 +36,6 @@ namespace WinSW.Tests.Util
 
         internal static string ArtifactsDirectory => artifactsDirectory ??= Path.Combine(RepositoryRoot, "artifacts");
 
-        internal static string NET461Exe => Path.Combine(ArtifactsDirectory, "publish", "WinSW-net461.exe");
-
-        internal static string WinSWExe =>
-#if NET
-            Path.ChangeExtension(typeof(Program).Assembly.Location, ".exe");
-#else
-            typeof(Program).Assembly.Location;
-#endif
+        internal static string WinSWExe => Path.ChangeExtension(typeof(Program).Assembly.Location, ".exe");
     }
 }

@@ -199,11 +199,7 @@ namespace WinSW.Native
                 var serviceName = new ReadOnlySpan<char>(this.ServiceName, new ReadOnlySpan<char>(this.ServiceName, 256).IndexOf('\0'));
                 var displayName = new ReadOnlySpan<char>(this.DisplayName, new ReadOnlySpan<char>(this.DisplayName, 256).IndexOf('\0'));
 
-#if NET
                 return string.Concat(displayName, " (", serviceName, ")");
-#else
-                return string.Concat(displayName.ToString(), " (", serviceName.ToString(), ")");
-#endif
             }
         }
 

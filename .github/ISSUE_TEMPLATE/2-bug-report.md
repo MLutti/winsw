@@ -19,7 +19,7 @@ TODO
 ## Environment
 
 * WinSW version: TODO
-* WinSW package type: TODO (e.g. .NET 4.6.1 )
+* WinSW package type: TODO (e.g. .NET 10 x64 )
 * Windows version: TODO
 * Wrapped executable and version: TODO <!-- e.g. "internal project", "Jenkins 2.222.1"-->
 

@@ -128,17 +128,7 @@ namespace WinSW.Util
                 }
             }
 
-#if NET
             process.Kill();
-#else
-            try
-            {
-                process.Kill();
-            }
-            catch when (process.HasExited)
-            {
-            }
-#endif
 
             return false;
         }
@@ -178,17 +168,7 @@ namespace WinSW.Util
                 }
             }
 
-#if NET
             process.Kill();
-#else
-            try
-            {
-                process.Kill();
-            }
-            catch when (process.HasExited)
-            {
-            }
-#endif
 
             Log.Debug($"Process '{process.Format()}' terminated.");
             return;

@@ -87,14 +87,7 @@ namespace WinSW
                     Console.SetError(new StreamWriter(stderr) { AutoFlush = true });
                 }
 
-#if NET
                 args = args[4..];
-#else
-                string[] oldArgs = args;
-                int newLength = oldArgs.Length - 4;
-                args = new string[newLength];
-                Array.Copy(oldArgs, 4, args, 0, newLength);
-#endif
             }
             else if (Environment.OSVersion.Version.Major == 5)
             {

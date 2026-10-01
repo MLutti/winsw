@@ -19,18 +19,21 @@ namespace WinSW.Logging
 
         protected override void Append(LoggingEvent loggingEvent)
         {
+            string message = loggingEvent.RenderedMessage ?? string.Empty;
+            Level level = loggingEvent.Level ?? Level.Debug;
+
             var eventLog = this.provider.Locate();
 
             if (eventLog is not null)
             {
-                eventLog.WriteEntry(loggingEvent.RenderedMessage, ToEventLogEntryType(loggingEvent.Level));
+                eventLog.WriteEntry(message, ToEventLogEntryType(level));
                 return;
             }
 
             try
             {
                 using var backupLog = new EventLog("Application", ".", "Windows Service Wrapper");
-                backupLog.WriteEntry(loggingEvent.RenderedMessage, ToEventLogEntryType(loggingEvent.Level));
+                backupLog.WriteEntry(message, ToEventLogEntryType(level));
             }
             catch
             {

@@ -464,12 +464,7 @@ namespace WinSW
         /// <exception cref="MissingFieldException" />
         private void AcceptPreshutdown()
         {
-            const string acceptedCommandsFieldName =
-#if NET
-                "_acceptedCommands";
-#else
-                "acceptedCommands";
-#endif
+            const string acceptedCommandsFieldName = "_acceptedCommands";
 
             var acceptedCommandsField = typeof(ServiceBase).GetField(acceptedCommandsFieldName, BindingFlags.Instance | BindingFlags.NonPublic);
             if (acceptedCommandsField is null)
@@ -540,12 +535,7 @@ namespace WinSW
             var environment = this.config.EnvironmentVariables;
             if (environment.Count > 0)
             {
-                var newEnvironment =
-#if NET
-                    startInfo.Environment;
-#else
-                    startInfo.EnvironmentVariables;
-#endif
+                var newEnvironment = startInfo.Environment;
                 foreach (var pair in environment)
                 {
                     newEnvironment[pair.Key] = pair.Value;

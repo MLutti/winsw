@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-[.NET SDK (7.0 or later)](https://dotnet.microsoft.com/download) and your favorite code editor.
+[.NET SDK (10.0 or later)](https://dotnet.microsoft.com/download) and your favorite code editor.
 
 - [Visual Studio 2022 or later](https://visualstudio.microsoft.com/downloads/) with the **.NET desktop development** workload
 - [Visual Studio Code](https://code.visualstudio.com/Download) with the [C# for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=ms-dotnettools.csharp) extension

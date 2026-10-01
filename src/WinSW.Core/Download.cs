@@ -36,14 +36,6 @@ namespace WinSW
 
         public string ShortId => $"(download from {this.From})";
 
-#if NET461
-        static Download()
-        {
-            // If your app runs on .NET Framework 4.7 or later versions, but targets an earlier version
-            AppContext.SetSwitch("Switch.System.Net.DontEnableSystemDefaultTlsVersions", false);
-        }
-#endif
-
         // internal
         public Download(
             string from,
