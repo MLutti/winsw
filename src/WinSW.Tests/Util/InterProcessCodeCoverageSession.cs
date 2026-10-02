@@ -2,11 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Threading;
 using Microsoft.Diagnostics.Runtime;
-using Microsoft.Diagnostics.Runtime.Interop;
-using Windows.Win32;
+using Microsoft.Diagnostics.Runtime.Utilities.DbgEng;
 using WinSW.Native;
 using Xunit;
 
@@ -36,22 +34,17 @@ namespace WinSW.Tests.Util
             int processId = sc.ProcessId;
             Assert.True(processId >= 0);
 
-            var guid = new Guid("27fe5639-8407-4f47-8364-ee118fb08ac8");
-            PInvoke.DebugCreate(guid, out object unknown).ThrowOnFailure();
+            var dbgeng = IDebugClient.Create();
+            var client = (IDebugClient)dbgeng;
+            this.control = (IDebugControl)dbgeng;
 
-            var client = (IDebugClient)unknown;
-            this.control = (IDebugControl)unknown;
-
-            int hr = client.AttachProcess(0, (uint)processId, DEBUG_ATTACH.DEFAULT);
+            int hr = client.AttachProcess(processId, DEBUG_ATTACH.DEFAULT);
             AssertEx.Succeeded(hr);
 
             hr = client.SetEventCallbacks(this);
             AssertEx.Succeeded(hr);
 
-            var pointer = Marshal.GetIUnknownForObject(client);
-            Assert.Equal(3, Marshal.Release(pointer));
-
-            target = DataTarget.CreateFromDbgEng(pointer);
+            target = DbgEngIDataReader.CreateDataTarget(dbgeng);
 
             var thread = this.thread = new Thread(() =>
             {
@@ -61,7 +54,7 @@ namespace WinSW.Tests.Util
                     {
                         do
                         {
-                            int hr = this.control.WaitForEvent(DEBUG_WAIT.DEFAULT, 0xffffffff);
+                            int hr = this.control.WaitForEvent(TimeSpan.MaxValue);
                             AssertEx.Succeeded(hr);
                         }
                         while (!this.exited);
@@ -86,38 +79,19 @@ namespace WinSW.Tests.Util
             }
         }
 
-        int IDebugEventCallbacks.GetInterestMask(out DEBUG_EVENT Mask)
-        {
-            Mask = DEBUG_EVENT.EXIT_PROCESS;
-            return 0;
-        }
+        DEBUG_EVENT IDebugEventCallbacks.EventInterestMask => DEBUG_EVENT.EXIT_PROCESS;
 
-        int IDebugEventCallbacks.Breakpoint(IDebugBreakpoint Bp)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnBreakpoint(IntPtr breakpoint) => throw new NotImplementedException();
 
-        int IDebugEventCallbacks.Exception(in EXCEPTION_RECORD64 Exception, uint FirstChance)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnException(in EXCEPTION_RECORD64 exception, bool firstChance) => throw new NotImplementedException();
 
-        int IDebugEventCallbacks.CreateThread(ulong Handle, ulong DataOffset, ulong StartOffset)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnCreateThread(ulong handle, ulong dataOffset, ulong startOffset) => throw new NotImplementedException();
 
-        int IDebugEventCallbacks.ExitThread(uint ExitCode)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnExitThread(int exitCode) => throw new NotImplementedException();
 
-        int IDebugEventCallbacks.CreateProcess(ulong ImageFileHandle, ulong Handle, ulong BaseOffset, uint ModuleSize, string ModuleName, string ImageName, uint CheckSum, uint TimeDateStamp, ulong InitialThreadHandle, ulong ThreadDataOffset, ulong StartOffset)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnCreateProcess(ulong imageFileHandle, ulong handle, ulong baseOffset, uint moduleSize, string moduleName, string imageName, uint checkSum, uint timeDateStamp, ulong initialThreadHandle, ulong threadDataOffset, ulong startOffset) => throw new NotImplementedException();
 
-        int IDebugEventCallbacks.ExitProcess(uint ExitCode)
+        DEBUG_STATUS IDebugEventCallbacks.OnExitProcess(int exitCode)
         {
             this.exited = true;
 
@@ -144,42 +118,21 @@ namespace WinSW.Tests.Util
                 (this.exceptions ??= new List<Exception>()).Add(e);
             }
 
-            return (int)DEBUG_STATUS.BREAK;
+            return DEBUG_STATUS.BREAK;
         }
 
-        int IDebugEventCallbacks.LoadModule(ulong ImageFileHandle, ulong BaseOffset, uint ModuleSize, string ModuleName, string ImageName, uint CheckSum, uint TimeDateStamp)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnLoadModule(ulong imageFileHandle, ulong baseOffset, uint moduleSize, string moduleName, string imageName, uint checkSum, uint timeDateStamp) => throw new NotImplementedException();
 
-        int IDebugEventCallbacks.UnloadModule(string ImageBaseName, ulong BaseOffset)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnUnloadModule(string imageBaseName, ulong baseOffset) => throw new NotImplementedException();
 
-        int IDebugEventCallbacks.SystemError(uint Error, uint Level)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnSystemError(uint error, uint level) => throw new NotImplementedException();
 
-        int IDebugEventCallbacks.SessionStatus(DEBUG_SESSION Status)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnSessionStatus(DEBUG_SESSION status) => throw new NotImplementedException();
 
-        int IDebugEventCallbacks.ChangeDebuggeeState(DEBUG_CDS Flags, ulong Argument)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnDebuggeeChangeState(DEBUG_CDS flags, ulong argument) => throw new NotImplementedException();
 
-        int IDebugEventCallbacks.ChangeEngineState(DEBUG_CES Flags, ulong Argument)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnEngineChangeState(DEBUG_CES flags, ulong argument) => throw new NotImplementedException();
 
-        int IDebugEventCallbacks.ChangeSymbolState(DEBUG_CSS Flags, ulong Argument)
-        {
-            throw new NotImplementedException();
-        }
+        DEBUG_STATUS IDebugEventCallbacks.OnSymbolChangeState(DEBUG_CSS flags, ulong argument) => throw new NotImplementedException();
     }
 }

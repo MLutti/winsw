@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.CommandLine;
-using System.CommandLine.Builder;
-using System.CommandLine.Invocation;
+using System.CommandLine.Completions;
+using System.CommandLine.Help;
 using System.CommandLine.Parsing;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -13,6 +13,8 @@ using System.Reflection;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.ServiceProcess;
+using System.Threading;
+using System.Threading.Tasks;
 using log4net;
 using log4net.Appender;
 using log4net.Config;
@@ -35,7 +37,7 @@ namespace WinSW
 
         private static readonly ILog Log = LogManager.GetLogger(LoggerNames.Console);
 
-        internal static Action<Exception, InvocationContext>? TestExceptionHandler;
+        internal static Action<Exception, ParseResult>? TestExceptionHandler;
         internal static XmlServiceConfig? TestConfig;
         internal static string? TestExecutablePath;
 
@@ -99,10 +101,10 @@ namespace WinSW
                 elevated = IsProcessElevated();
             }
 
-            var serviceConfig = new Argument<string?>("path-to-config")
+            var serviceConfig = new Argument<string>("path-to-config")
             {
                 Arity = ArgumentArity.ZeroOrOne,
-                IsHidden = true,
+                Hidden = true,
             };
 
             var root = new RootCommand("A wrapper binary that can be used to host executables as Windows services. https://github.com/winsw/winsw");
@@ -119,18 +121,28 @@ namespace WinSW
                 }
             }
 
-            root.SetHandler(Run, serviceConfig);
+            root.SetAction(pr => Run(pr.GetValue<string>(serviceConfig)));
 
-            var config = new Argument<string?>("path-to-config", "The path to the configuration file.")
+            var config = new Argument<string>("path-to-config")
             {
                 Arity = ArgumentArity.ZeroOrOne,
+                Description = "The path to the configuration file.",
             };
 
-            var noElevate = new Option<bool>("--no-elevate", "Doesn't automatically trigger a UAC prompt.");
+            var noElevate = new Option<bool>("--no-elevate")
+            {
+                Description = "Doesn't automatically trigger a UAC prompt.",
+            };
 
             {
-                var username = new Option<string?>(new[] { "--username", "--user" }, "Specifies the user name of the service account.");
-                var password = new Option<string?>(new[] { "--password", "--pass" }, "Specifies the password of the service account.");
+                var username = new Option<string>("--username", "--user")
+                {
+                    Description = "Specifies the user name of the service account.",
+                };
+                var password = new Option<string>("--password", "--pass")
+                {
+                    Description = "Specifies the password of the service account.",
+                };
 
                 var install = new Command("install", "Installs the service.")
                 {
@@ -139,7 +151,11 @@ namespace WinSW
                     username,
                     password,
                 };
-                install.SetHandler(Install, config, noElevate, username, password);
+                install.SetAction(pr => Install(
+                    pr.GetValue<string>(config),
+                    pr.GetValue<bool>(noElevate),
+                    pr.GetValue<string>(username),
+                    pr.GetValue<string>(password)));
 
                 root.Add(install);
             }
@@ -150,13 +166,18 @@ namespace WinSW
                     config,
                     noElevate,
                 };
-                uninstall.SetHandler(Uninstall, config, noElevate);
+                uninstall.SetAction(pr => Uninstall(
+                    pr.GetValue<string>(config),
+                    pr.GetValue<bool>(noElevate)));
 
                 root.Add(uninstall);
             }
 
             {
-                var noWait = new Option<bool>("--no-wait", "Doesn't wait for the service to actually start.");
+                var noWait = new Option<bool>("--no-wait")
+                {
+                    Description = "Doesn't wait for the service to actually start.",
+                };
 
                 var start = new Command("start", "Starts the service.")
                 {
@@ -164,14 +185,24 @@ namespace WinSW
                     noElevate,
                     noWait,
                 };
-                start.SetHandler(Start, config, noElevate, noWait);
+                start.SetAction((pr, ct) => Task.FromResult(Start(
+                    pr.GetValue<string>(config),
+                    pr.GetValue<bool>(noElevate),
+                    pr.GetValue<bool>(noWait),
+                    ct)));
 
                 root.Add(start);
             }
 
             {
-                var noWait = new Option<bool>("--no-wait", "Doesn't wait for the service to actually stop.");
-                var force = new Option<bool>("--force", "Stops the service even if it has started dependent services.");
+                var noWait = new Option<bool>("--no-wait")
+                {
+                    Description = "Doesn't wait for the service to actually stop.",
+                };
+                var force = new Option<bool>("--force")
+                {
+                    Description = "Stops the service even if it has started dependent services.",
+                };
 
                 var stop = new Command("stop", "Stops the service.")
                 {
@@ -180,13 +211,21 @@ namespace WinSW
                     noWait,
                     force,
                 };
-                stop.SetHandler(Stop, config, noElevate, noWait, force);
+                stop.SetAction((pr, ct) => Task.FromResult(Stop(
+                    pr.GetValue<string>(config),
+                    pr.GetValue<bool>(noElevate),
+                    pr.GetValue<bool>(noWait),
+                    pr.GetValue<bool>(force),
+                    ct)));
 
                 root.Add(stop);
             }
 
             {
-                var force = new Option<bool>("--force", "Restarts the service even if it has started dependent services.");
+                var force = new Option<bool>("--force")
+                {
+                    Description = "Restarts the service even if it has started dependent services.",
+                };
 
                 var restart = new Command("restart", "Stops and then starts the service.")
                 {
@@ -194,7 +233,11 @@ namespace WinSW
                     noElevate,
                     force,
                 };
-                restart.SetHandler(Restart, config, noElevate, force);
+                restart.SetAction((pr, ct) => Task.FromResult(Restart(
+                    pr.GetValue<string>(config),
+                    pr.GetValue<bool>(noElevate),
+                    pr.GetValue<bool>(force),
+                    ct)));
 
                 root.Add(restart);
             }
@@ -204,7 +247,7 @@ namespace WinSW
                 {
                     config,
                 };
-                restartSelf.SetHandler(RestartSelf, config);
+                restartSelf.SetAction(pr => RestartSelf(pr.GetValue<string>(config)));
 
                 root.Add(restartSelf);
             }
@@ -214,7 +257,7 @@ namespace WinSW
                 {
                     config,
                 };
-                status.SetHandler(Status, config);
+                status.SetAction(pr => Status(pr.GetValue<string>(config)));
 
                 root.Add(status);
             }
@@ -225,32 +268,38 @@ namespace WinSW
                     config,
                     noElevate,
                 };
-                refresh.SetHandler(Refresh, config, noElevate);
+                refresh.SetAction(pr => Refresh(
+                    pr.GetValue<string>(config),
+                    pr.GetValue<bool>(noElevate)));
 
                 root.Add(refresh);
             }
 
             {
-                var output = new Option<string>(new[] { "--output", "-o" })
+                var output = new Option<string>("--output", "-o")
                 {
-                    IsRequired = true,
+                    Arity = ArgumentArity.ExactlyOne,
                 };
 
                 var manufacturer = new Option<string>("--manufacturer")
                 {
-                    IsRequired = true,
+                    Arity = ArgumentArity.ExactlyOne,
                 };
-                manufacturer.AddValidator(result =>
+                manufacturer.Validators.Add(result =>
                 {
                     const int minLength = 12;
                     const int maxLength = 15;
 
                     string token = result.Tokens.Single().Value;
                     int length = token.Length;
-                    result.ErrorMessage =
-                        length < minLength ? $"The length of argument '{token}' must be greater than or equal to {minLength}." :
-                        length > maxLength ? $"The length of argument '{token}' must be less than or equal to {maxLength}." :
-                        null;
+                    if (length < minLength)
+                    {
+                        result.AddError($"The length of argument '{token}' must be greater than or equal to {minLength}.");
+                    }
+                    else if (length > maxLength)
+                    {
+                        result.AddError($"The length of argument '{token}' must be less than or equal to {maxLength}.");
+                    }
                 });
 
                 var customize = new Command("customize", "Customizes the wrapper executable.")
@@ -258,7 +307,9 @@ namespace WinSW
                     output,
                     manufacturer,
                 };
-                customize.SetHandler(Customize, output, manufacturer);
+                customize.SetAction(pr => Customize(
+                    pr.GetRequiredValue<string>(output),
+                    pr.GetRequiredValue<string>(manufacturer)));
 
                 root.Add(customize);
             }
@@ -269,14 +320,16 @@ namespace WinSW
                 root.Add(dev);
 
                 {
-                    var all = new Option<bool>(new[] { "--all", "-a" });
+                    var all = new Option<bool>("--all", "-a");
 
                     var ps = new Command("ps", "Draws the process tree associated with the service.")
                     {
                         config,
                         all,
                     };
-                    ps.SetHandler(DevPs, config, all);
+                    ps.SetAction(pr => DevPs(
+                        pr.GetValue<string>(config),
+                        pr.GetValue<bool>(all)));
 
                     dev.Add(ps);
                 }
@@ -287,31 +340,47 @@ namespace WinSW
                         config,
                         noElevate,
                     };
-                    kill.SetHandler(DevKill, config, noElevate);
+                    kill.SetAction(pr => DevKill(
+                        pr.GetValue<string>(config),
+                        pr.GetValue<bool>(noElevate)));
 
                     dev.Add(kill);
                 }
 
                 {
                     var list = new Command("list", "Lists services managed by the current executable.");
-                    list.SetHandler(DevList);
+                    list.SetAction(pr => DevList());
 
                     dev.Add(list);
                 }
             }
 
-            return new CommandLineBuilder(root)
-                .UseVersionOption()
-                .UseHelp()
-                .RegisterWithDotnetSuggest()
-                .UseTypoCorrections()
-                .UseParseErrorReporting()
-                .UseExceptionHandler(TestExceptionHandler ?? OnException)
-                .CancelOnProcessTermination()
-                .Build()
-                .Invoke(args);
+            root.Add(new HelpOption());
+            root.Add(new VersionOption());
+            root.Add(new SuggestDirective());
 
-            static void OnException(Exception exception, InvocationContext context)
+            var parseResult = CommandLineParser.Parse(root, args);
+            var invocationConfig = new InvocationConfiguration
+            {
+                EnableDefaultExceptionHandler = false,
+            };
+
+            try
+            {
+                return parseResult.Invoke(invocationConfig);
+            }
+            catch (Exception e)
+            {
+                if (TestExceptionHandler is not null)
+                {
+                    TestExceptionHandler(e, parseResult);
+                    return 1;
+                }
+
+                return OnException(e);
+            }
+
+            static int OnException(Exception exception)
             {
                 switch (exception)
                 {
@@ -319,52 +388,45 @@ namespace WinSW
                         {
                             string message = "The configuration file could not be loaded. " + e.Message;
                             Log.Fatal(message, e);
-                            context.ExitCode = -1;
-                            break;
+                            return -1;
                         }
 
                     case OperationCanceledException e:
                         {
-                            Debug.Assert(e.CancellationToken == context.GetCancellationToken());
                             Log.Fatal(e.Message);
-                            context.ExitCode = -1;
-                            break;
+                            return -1;
                         }
 
                     case CommandException e:
                         {
                             string message = e.Message;
                             Log.Fatal(message);
-                            context.ExitCode = e.InnerException is Win32Exception inner ? inner.NativeErrorCode : -1;
-                            break;
+                            return e.InnerException is Win32Exception inner ? inner.NativeErrorCode : -1;
                         }
 
                     case InvalidOperationException e when e.InnerException is Win32Exception inner:
                         {
                             string message = e.Message;
                             Log.Fatal(message);
-                            context.ExitCode = inner.NativeErrorCode;
-                            break;
+                            return inner.NativeErrorCode;
                         }
 
                     case Win32Exception e:
                         {
                             string message = e.Message;
                             Log.Fatal(message, e);
-                            context.ExitCode = e.NativeErrorCode;
-                            break;
+                            return e.NativeErrorCode;
                         }
 
                     default:
                         {
                             Log.Fatal("Unhandled exception", exception);
-                            context.ExitCode = -1;
-                            break;
+                            return -1;
                         }
                 }
             }
 
-            static void Run(string? pathToConfig)
+            static int Run(string? pathToConfig)
             {
                 XmlServiceConfig config = null!;
                 try
@@ -389,16 +451,18 @@ namespace WinSW
                 {
                     // handled in OnStart
                 }
+
+                return 0;
             }
 
-            void Install(string? pathToConfig, bool noElevate, string? username, string? password)
+            int Install(string? pathToConfig, bool noElevate, string? username, string? password)
             {
                 var config = LoadConfigAndInitLoggers(pathToConfig, true);
 
                 if (!elevated)
                 {
                     Elevate(noElevate);
-                    return;
+                    return 0;
                 }
 
                 Log.Info($"Installing service '{config.Format()}'...");
@@ -497,16 +561,18 @@ namespace WinSW
                 }
 
                 Log.Info($"Service '{config.Format()}' was installed successfully.");
+
+                return 0;
             }
 
-            void Uninstall(string? pathToConfig, bool noElevate)
+            int Uninstall(string? pathToConfig, bool noElevate)
             {
                 var config = LoadConfigAndInitLoggers(pathToConfig, true);
 
                 if (!elevated)
                 {
                     Elevate(noElevate);
-                    return;
+                    return 0;
                 }
 
                 Log.Info($"Uninstalling service '{config.Format()}'...");
@@ -546,16 +612,18 @@ namespace WinSW
                             break;
                     }
                 }
+
+                return 0;
             }
 
-            void Start(string? pathToConfig, bool noElevate, bool noWait, InvocationContext context)
+            int Start(string? pathToConfig, bool noElevate, bool noWait, CancellationToken ct)
             {
                 var config = LoadConfigAndInitLoggers(pathToConfig, true);
 
                 if (!elevated)
                 {
                     Elevate(noElevate);
-                    return;
+                    return 0;
                 }
 
                 AutoRefresh(config);
@@ -571,7 +639,6 @@ namespace WinSW
                     {
                         try
                         {
-                            var ct = context.GetCancellationToken();
                             svc.WaitForStatus(ServiceControllerStatus.Running, ServiceControllerStatus.StartPending, ct);
                         }
                         catch (TimeoutException)
@@ -592,16 +659,18 @@ namespace WinSW
                 {
                     Log.Info($"Service '{svc.Format()}' has already started.");
                 }
+
+                return 0;
             }
 
-            void Stop(string? pathToConfig, bool noElevate, bool noWait, bool force, InvocationContext context)
+            int Stop(string? pathToConfig, bool noElevate, bool noWait, bool force, CancellationToken ct)
             {
                 var config = LoadConfigAndInitLoggers(pathToConfig, true);
 
                 if (!elevated)
                 {
                     Elevate(noElevate);
-                    return;
+                    return 0;
                 }
 
                 AutoRefresh(config);
@@ -625,7 +694,6 @@ namespace WinSW
                     {
                         try
                         {
-                            var ct = context.GetCancellationToken();
                             svc.WaitForStatus(ServiceControllerStatus.Stopped, ServiceControllerStatus.StopPending, ct);
                         }
                         catch (TimeoutException)
@@ -646,16 +714,18 @@ namespace WinSW
                 {
                     Log.Info($"Service '{svc.Format()}' has already stopped.");
                 }
+
+                return 0;
             }
 
-            void Restart(string? pathToConfig, bool noElevate, bool force, InvocationContext context)
+            int Restart(string? pathToConfig, bool noElevate, bool force, CancellationToken ct)
             {
                 var config = LoadConfigAndInitLoggers(pathToConfig, true);
 
                 if (!elevated)
                 {
                     Elevate(noElevate);
-                    return;
+                    return 0;
                 }
 
                 AutoRefresh(config);
@@ -681,7 +751,6 @@ namespace WinSW
 
                     try
                     {
-                        var ct = context.GetCancellationToken();
                         svc.WaitForStatus(ServiceControllerStatus.Stopped, ServiceControllerStatus.StopPending, ct);
                     }
                     catch (TimeoutException)
@@ -704,7 +773,6 @@ namespace WinSW
 
                 try
                 {
-                    var ct = context.GetCancellationToken();
                     svc.WaitForStatus(ServiceControllerStatus.Running, ServiceControllerStatus.StartPending, ct);
                 }
                 catch (TimeoutException)
@@ -725,9 +793,11 @@ namespace WinSW
                 }
 
                 Log.Info($"Service '{svc.Format()}' restarted successfully.");
+
+                return 0;
             }
 
-            void RestartSelf(string? pathToConfig)
+            int RestartSelf(string? pathToConfig)
             {
                 var config = LoadConfigAndInitLoggers(pathToConfig, true);
 
@@ -756,9 +826,11 @@ namespace WinSW
 
                 _ = HandleApis.CloseHandle(processInfo.ProcessHandle);
                 _ = HandleApis.CloseHandle(processInfo.ThreadHandle);
+
+                return 0;
             }
 
-            static void Status(string? pathToConfig, InvocationContext context)
+            static int Status(string? pathToConfig)
             {
                 var config = LoadConfigAndInitLoggers(pathToConfig, true);
 
@@ -776,7 +848,7 @@ namespace WinSW
                         _ => "Inactive (stopped)"
                     });
 
-                    context.ExitCode = svc.Status switch
+                    return svc.Status switch
                     {
                         ServiceControllerStatus.Stopped => 0,
                         ServiceControllerStatus.Running => 0,
@@ -787,24 +859,26 @@ namespace WinSW
                 when (e.InnerException is Win32Exception inner && inner.NativeErrorCode == Errors.ERROR_SERVICE_DOES_NOT_EXIST)
                 {
                     Console.WriteLine("NonExistent");
-                    context.ExitCode = Errors.ERROR_SERVICE_DOES_NOT_EXIST;
+                    return Errors.ERROR_SERVICE_DOES_NOT_EXIST;
                 }
             }
 
-            void Refresh(string? pathToConfig, bool noElevate)
+            int Refresh(string? pathToConfig, bool noElevate)
             {
                 var config = LoadConfigAndInitLoggers(pathToConfig, true);
 
                 if (!elevated)
                 {
                     Elevate(noElevate);
-                    return;
+                    return 0;
                 }
 
                 DoRefresh(config);
+
+                return 0;
             }
 
-            static unsafe void DevPs(string? pathToConfig, bool all)
+            static unsafe int DevPs(string? pathToConfig, bool all)
             {
                 if (all)
                 {
@@ -850,6 +924,8 @@ namespace WinSW
                     }
                 }
 
+                return 0;
+
                 static void Draw(Process process, string indentation, bool isLastChild)
                 {
                     const string Vertical = " \u2502 ";
@@ -886,14 +962,14 @@ namespace WinSW
                 }
             }
 
-            void DevKill(string? pathToConfig, bool noElevate)
+            int DevKill(string? pathToConfig, bool noElevate)
             {
                 var config = LoadConfigAndInitLoggers(pathToConfig, true);
 
                 if (!elevated)
                 {
                     Elevate(noElevate);
-                    return;
+                    return 0;
                 }
 
                 using var scm = ServiceManager.Open();
@@ -906,9 +982,11 @@ namespace WinSW
 
                     process.StopDescendants(config.StopTimeoutInMs);
                 }
+
+                return 0;
             }
 
-            static unsafe void DevList()
+            static unsafe int DevList()
             {
                 using var scm = ServiceManager.Open(ServiceManagerAccess.EnumerateService);
                 foreach (var status in scm.EnumerateServices())
@@ -919,9 +997,11 @@ namespace WinSW
                         Console.WriteLine(status->ToString());
                     }
                 }
+
+                return 0;
             }
 
-            static void Customize(string output, string manufacturer)
+            static int Customize(string output, string manufacturer)
             {
                 if (Resources.UpdateCompanyName(ExecutablePath, output, manufacturer))
                 {
@@ -931,6 +1011,8 @@ namespace WinSW
                 {
                     Console.Error.WriteLine("The operation failed.");
                 }
+
+                return 0;
             }
 
             // [DoesNotReturn]
