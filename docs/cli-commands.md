@@ -7,6 +7,7 @@
 - [start](#start-command)
 - [stop](#stop-command)
 - [restart](#restart-command)
+- [restart!](#restart-command-1)
 - [status](#status-command)
 - [refresh](#refresh-command)
 - [customize](#customize-command)
@@ -145,6 +146,31 @@ If a file isn't specified, WinSW searches the executable directory for a *.xml* 
 - `--force`
 
   Restarts the service even if it has started dependent services.
+
+## `restart!` command
+
+Restarts the service from a child process.
+
+This hidden command is a flavor of the `restart` operation,
+where WinSW creates another WinSW process in a separate process group,
+and restarts the service from there.
+The additional indirection is necessary because WinSW kills child processes recursively when it stops a service,
+so the second WinSW process in a separate process group ensures that WinSW can survive to execute the start call.
+
+See [Self-restarting Windows services](self-restarting-service.md) for details.
+
+### Usage
+
+```console
+winsw restart! [<path-to-config>]
+```
+
+### Arguments
+
+`path-to-config`
+
+The path to the configuration file.
+If a file isn't specified, WinSW searches the executable directory for a *.xml* file with the same file name without the extension.
 
 ## `status` command
 

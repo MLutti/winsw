@@ -2,7 +2,8 @@
 
 ## Automatic migration
 
-TODO
+WinSW 3.x does not provide an automatic migration tool.
+Please migrate your configuration files manually using the steps below.
 
 ## Manual migration
 

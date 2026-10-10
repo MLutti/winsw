@@ -12,11 +12,10 @@ nav:
     - Self Restarting Service: docs/self-restarting-service.md
   - Troubleshooting: docs/troubleshooting.md
   - Migration to 3.x: docs/migrate-to-3-x.md
+  - Extensions:
+      - Extensions: docs/extensions/extensions.md
   - Developer:
       - Contributing: CONTRIBUTING.md
       - Project Structure: docs/developer/project-structure.md
-# FIXME - remove?
-#  - Extensions:
-#      - Extensions: docs/extensions/extensions.md
 
 
