@@ -481,7 +481,7 @@ namespace WinSW
                     username = config.ServiceAccountUserName ?? username;
                     password = config.ServiceAccountPassword ?? password;
 
-                    if (username is null || password is null && !Security.IsSpecialAccount(username))
+                    if ((username is null || password is null) && !Security.IsSpecialAccount(username))
                     {
                         switch (config.ServiceAccountPrompt)
                         {
@@ -811,7 +811,7 @@ namespace WinSW
                 // run restart from another process group. see README.md for why this is useful.
                 if (!ProcessApis.CreateProcess(
                     null,
-                    $"\"{config.ExecutablePath}\" restart" + (pathToConfig is null ? null : $" \"{pathToConfig}\""),
+                    $"\"{config.ExecutablePath}\" restart" + (pathToConfig is null ? null : $" \"{Path.GetFullPath(pathToConfig)}\""),
                     IntPtr.Zero,
                     IntPtr.Zero,
                     false,

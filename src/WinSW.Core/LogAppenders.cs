@@ -462,12 +462,14 @@ namespace WinSW
             var copy = new StreamCopyOperation(reader.BaseStream, writer);
             long fileLength = new FileInfo(logFile).Length;
 
+            System.Timers.Timer? timer = null;
+
             // We auto roll at time is configured then we need to create a timer and wait until time is elasped and roll the file over
             if (this.AutoRollAtTime is TimeSpan autoRollAtTime)
             {
                 // Run at start
                 double tickTime = this.SetupRollTimer(autoRollAtTime);
-                var timer = new System.Timers.Timer(tickTime);
+                timer = new System.Timers.Timer(tickTime);
                 timer.Elapsed += (_, _) =>
                 {
                     try
@@ -496,46 +498,64 @@ namespace WinSW
                     finally
                     {
                         // Recalculate the next interval
-                        timer.Interval = this.SetupRollTimer(autoRollAtTime);
-                        timer.Start();
+                        try
+                        {
+                            timer.Interval = this.SetupRollTimer(autoRollAtTime);
+                            timer.Start();
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            // The copy operation has finished and the timer was disposed.
+                        }
                     }
                 };
                 timer.Start();
             }
 
-            int written;
-            while ((written = await copy.CopyLineAsync()) != 0)
+            try
             {
-                lock (fileLock)
+                int written;
+                while ((written = await copy.CopyLineAsync()) != 0)
                 {
-                    fileLength += written;
-                    if (fileLength > this.SizeThreshold)
+                    lock (fileLock)
                     {
-                        try
+                        fileLength += written;
+                        if (fileLength > this.SizeThreshold)
                         {
-                            // roll file
-                            var now = DateTime.Now;
-                            int nextFileNumber = this.GetNextFileNumber(extension, baseDirectory, baseFileName, now);
-                            string? nextFileName = Path.Combine(
-                                    baseDirectory,
-                                    string.Format("{0}.{1}.#{2:D4}{3}", baseFileName, now.ToString(this.FilePattern), nextFileNumber, extension));
-                            File.Move(logFile, nextFileName);
+                            try
+                            {
+                                // roll file
+                                var now = DateTime.Now;
+                                int nextFileNumber = this.GetNextFileNumber(extension, baseDirectory, baseFileName, now);
+                                string? nextFileName = Path.Combine(
+                                        baseDirectory,
+                                        string.Format("{0}.{1}.#{2:D4}{3}", baseFileName, now.ToString(this.FilePattern), nextFileNumber, extension));
+                                File.Move(logFile, nextFileName);
 
-                            // even if the log rotation fails, create a new one, or else
-                            // we'll infinitely try to roll.
-                            copy.Writer = writer = new FileStream(logFile, FileMode.Create);
-                            fileLength = new FileInfo(logFile).Length;
-                        }
-                        catch (Exception e)
-                        {
-                            this.EventLogger.WriteEntry($"Failed to roll size time log: {e.Message}");
+                                // even if the log rotation fails, create a new one, or else
+                                // we'll infinitely try to roll.
+                                copy.Writer = writer = new FileStream(logFile, FileMode.Create);
+                                fileLength = new FileInfo(logFile).Length;
+                            }
+                            catch (Exception e)
+                            {
+                                this.EventLogger.WriteEntry($"Failed to roll size time log: {e.Message}");
+                            }
                         }
                     }
                 }
             }
+            finally
+            {
+                // Stop the auto-roll timer so it doesn't keep firing after the copy is done.
+                timer?.Dispose();
 
-            reader.Dispose();
-            writer.Dispose();
+                lock (fileLock)
+                {
+                    reader.Dispose();
+                    writer.Dispose();
+                }
+            }
         }
 
         private void ZipFiles(string directory, string fileExtension, string zipFileBaseName)

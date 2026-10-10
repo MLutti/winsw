@@ -91,7 +91,7 @@ namespace WinSW.Native
             }
         }
 
-        internal static bool IsSpecialAccount(string accountName) => accountName switch
+        internal static bool IsSpecialAccount(string? accountName) => accountName switch
         {
             @"LocalSystem" => true,
             @".\LocalSystem" => true,

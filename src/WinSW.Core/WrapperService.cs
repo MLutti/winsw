@@ -24,7 +24,7 @@ namespace WinSW
 
         private readonly XmlServiceConfig config;
 
-        private Process process = null!;
+        private Process? process;
         private volatile Process? startingProcess;
         private volatile Process? stoppingProcess;
 
@@ -347,10 +347,10 @@ namespace WinSW
             {
                 try
                 {
-                    using var process = StartProcessLocked(prestopExecutable, prestop.Arguments, prestop.CreateLogHandler());
-                    this.WaitForProcessToExit(process);
-                    this.LogExited($"Pre-stop process '{process.Format()}' exited with code {process.ExitCode}.", process.ExitCode);
-                    process.StopDescendants(AdditionalStopTimeout);
+                    using var prestopProcess = StartProcessLocked(prestopExecutable, prestop.Arguments, prestop.CreateLogHandler());
+                    this.WaitForProcessToExit(prestopProcess);
+                    this.LogExited($"Pre-stop process '{prestopProcess.Format()}' exited with code {prestopProcess.ExitCode}.", prestopProcess.ExitCode);
+                    prestopProcess.StopDescendants(AdditionalStopTimeout);
                     this.stoppingProcess = null;
                 }
                 catch (Exception e)
@@ -360,47 +360,56 @@ namespace WinSW
             }
 
             Log.Info("Stopping " + this.config.Name);
-            this.process.EnableRaisingEvents = false;
 
-            string? stopExecutable = this.config.StopExecutable;
-            string? stopArguments = this.config.StopArguments;
-            if (stopExecutable is null && stopArguments is null)
+            var process = this.process;
+            if (process is null)
             {
-                var process = this.process;
-                Log.Debug("ProcessKill " + process.Id);
-                bool? result = process.Stop(this.config.StopTimeoutInMs);
-                this.LogMinimal($"Child process '{process.Format()}' " + result switch
-                {
-                    true => $"canceled with code {process.ExitCode}.",
-                    false => "terminated.",
-                    null => $"finished with code '{process.ExitCode}'."
-                });
-                this.process.StopDescendants(this.config.StopTimeoutInMs);
-                this.ExtensionManager.FireOnProcessTerminated(process);
+                // The main process was never started, e.g. because DoStart failed.
+                Log.Warn("No child process to stop. The service may have failed to start.");
             }
             else
             {
-                this.SignalPending();
+                process.EnableRaisingEvents = false;
 
-                stopExecutable ??= this.config.Executable;
-
-                try
+                string? stopExecutable = this.config.StopExecutable;
+                string? stopArguments = this.config.StopArguments;
+                if (stopExecutable is null && stopArguments is null)
                 {
-                    // TODO: Redirect logging to Log4Net once https://github.com/kohsuke/winsw/pull/213 is integrated
-                    using var stopProcess = StartProcessLocked(stopExecutable, stopArguments);
-
-                    Log.Debug("WaitForProcessToExit " + this.process.Id + "+" + stopProcess.Id);
-                    this.WaitForProcessToExit(stopProcess);
-                    stopProcess.StopDescendants(AdditionalStopTimeout);
-                    this.stoppingProcess = null;
-
-                    this.WaitForProcessToExit(this.process);
-                    this.process.StopDescendants(this.config.StopTimeoutInMs);
+                    Log.Debug("ProcessKill " + process.Id);
+                    bool? result = process.Stop(this.config.StopTimeoutInMs);
+                    this.LogMinimal($"Child process '{process.Format()}' " + result switch
+                    {
+                        true => $"canceled with code {process.ExitCode}.",
+                        false => "terminated.",
+                        null => $"finished with code '{process.ExitCode}'."
+                    });
+                    process.StopDescendants(this.config.StopTimeoutInMs);
+                    this.ExtensionManager.FireOnProcessTerminated(process);
                 }
-                catch
+                else
                 {
-                    this.process.StopTree(this.config.StopTimeoutInMs);
-                    throw;
+                    this.SignalPending();
+
+                    stopExecutable ??= this.config.Executable;
+
+                    try
+                    {
+                        // TODO: Redirect logging to Log4Net once https://github.com/kohsuke/winsw/pull/213 is integrated
+                        using var stopProcess = StartProcessLocked(stopExecutable, stopArguments);
+
+                        Log.Debug("WaitForProcessToExit " + process.Id + "+" + stopProcess.Id);
+                        this.WaitForProcessToExit(stopProcess);
+                        stopProcess.StopDescendants(AdditionalStopTimeout);
+                        this.stoppingProcess = null;
+
+                        this.WaitForProcessToExit(process);
+                        process.StopDescendants(this.config.StopTimeoutInMs);
+                    }
+                    catch
+                    {
+                        process.StopTree(this.config.StopTimeoutInMs);
+                        throw;
+                    }
                 }
             }
 
@@ -410,10 +419,10 @@ namespace WinSW
             {
                 try
                 {
-                    using var process = StartProcessLocked(poststopExecutable, poststop.Arguments, poststop.CreateLogHandler());
-                    this.WaitForProcessToExit(process);
-                    this.LogExited($"Post-stop process '{process.Format()}' exited with code {process.ExitCode}.", process.ExitCode);
-                    process.StopDescendants(AdditionalStopTimeout);
+                    using var poststopProcess = StartProcessLocked(poststopExecutable, poststop.Arguments, poststop.CreateLogHandler());
+                    this.WaitForProcessToExit(poststopProcess);
+                    this.LogExited($"Post-stop process '{poststopProcess.Format()}' exited with code {poststopProcess.ExitCode}.", poststopProcess.ExitCode);
+                    poststopProcess.StopDescendants(AdditionalStopTimeout);
                     this.stoppingProcess = null;
                 }
                 catch (Exception e)

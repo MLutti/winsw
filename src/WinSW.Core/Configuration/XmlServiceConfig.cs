@@ -276,7 +276,7 @@ namespace WinSW
                 var e = (XmlElement?)this.root.SelectSingleNode("logmode");
 
                 // this is more modern way, to support nested elements as configuration
-                e ??= (XmlElement?)this.root.SelectSingleNode("log")!; // WARNING: NRE
+                e ??= (XmlElement?)this.root.SelectSingleNode("log");
 
                 int sizeThreshold;
                 switch (this.LogMode)
@@ -294,34 +294,34 @@ namespace WinSW
                         return new RollingLogAppender(this.LogDirectory, this.LogName, this.OutFileDisabled, this.ErrFileDisabled, this.OutFilePattern, this.ErrFilePattern);
 
                     case "roll-by-time":
-                        var patternNode = e.SelectSingleNode("pattern");
+                        var patternNode = RequireLogNode().SelectSingleNode("pattern");
                         if (patternNode is null)
                         {
                             throw new InvalidDataException("Time Based rolling policy is specified but no pattern can be found in configuration XML.");
                         }
 
                         string? pattern = patternNode.InnerText;
-                        int period = SingleIntElement(e, "period", 1);
-                        int filesToKeep = SingleIntElement(e, "keepFiles", -1);
+                        int period = SingleIntElement(RequireLogNode(), "period", 1);
+                        int filesToKeep = SingleIntElement(RequireLogNode(), "keepFiles", -1);
                         return new TimeBasedRollingLogAppender(this.LogDirectory, this.LogName, this.OutFileDisabled, this.ErrFileDisabled, this.OutFilePattern, this.ErrFilePattern, pattern, period, filesToKeep);
 
                     case "roll-by-size":
-                        sizeThreshold = SingleIntElement(e, "sizeThreshold", 10 * 1024) * SizeBasedRollingLogAppender.BytesPerKB;
-                        int keepFiles = SingleIntElement(e, "keepFiles", SizeBasedRollingLogAppender.DefaultFilesToKeep);
+                        sizeThreshold = SingleIntElement(RequireLogNode(), "sizeThreshold", 10 * 1024) * SizeBasedRollingLogAppender.BytesPerKB;
+                        int keepFiles = SingleIntElement(RequireLogNode(), "keepFiles", SizeBasedRollingLogAppender.DefaultFilesToKeep);
                         return new SizeBasedRollingLogAppender(this.LogDirectory, this.LogName, this.OutFileDisabled, this.ErrFileDisabled, this.OutFilePattern, this.ErrFilePattern, sizeThreshold, keepFiles);
 
                     case "append":
                         return new DefaultLogAppender(this.LogDirectory, this.LogName, this.OutFileDisabled, this.ErrFileDisabled, this.OutFilePattern, this.ErrFilePattern);
 
                     case "roll-by-size-time":
-                        sizeThreshold = SingleIntElement(e, "sizeThreshold", 10 * 1024) * RollingSizeTimeLogAppender.BytesPerKB;
-                        var filePatternNode = e.SelectSingleNode("pattern");
+                        sizeThreshold = SingleIntElement(RequireLogNode(), "sizeThreshold", 10 * 1024) * RollingSizeTimeLogAppender.BytesPerKB;
+                        var filePatternNode = RequireLogNode().SelectSingleNode("pattern");
                         if (filePatternNode is null)
                         {
                             throw new InvalidDataException("Roll-Size-Time Based rolling policy is specified but no pattern can be found in configuration XML.");
                         }
 
-                        var autoRollAtTimeNode = e.SelectSingleNode("autoRollAtTime");
+                        var autoRollAtTimeNode = RequireLogNode().SelectSingleNode("autoRollAtTime");
                         TimeSpan? autoRollAtTime = null;
                         if (autoRollAtTimeNode != null)
                         {
@@ -334,7 +334,7 @@ namespace WinSW
                             autoRollAtTime = autoRollAtTimeValue;
                         }
 
-                        var zipolderthannumdaysNode = e.SelectSingleNode("zipOlderThanNumDays");
+                        var zipolderthannumdaysNode = RequireLogNode().SelectSingleNode("zipOlderThanNumDays");
                         int? zipolderthannumdays = null;
                         if (zipolderthannumdaysNode != null)
                         {
@@ -347,7 +347,7 @@ namespace WinSW
                             zipolderthannumdays = zipolderthannumdaysValue;
                         }
 
-                        var zipdateformatNode = e.SelectSingleNode("zipDateFormat");
+                        var zipdateformatNode = RequireLogNode().SelectSingleNode("zipDateFormat");
                         string zipdateformat = zipdateformatNode is null ? "yyyyMM" : zipdateformatNode.InnerText;
 
                         return new RollingSizeTimeLogAppender(this.LogDirectory, this.LogName, this.OutFileDisabled, this.ErrFileDisabled, this.OutFilePattern, this.ErrFilePattern, sizeThreshold, filePatternNode.InnerText, autoRollAtTime, zipolderthannumdays, zipdateformat);
@@ -355,6 +355,8 @@ namespace WinSW
                     default:
                         throw new InvalidDataException("Undefined logging mode: " + this.LogMode);
                 }
+
+                XmlElement RequireLogNode() => e ?? throw new InvalidDataException("The 'log' element is required for the configured logging mode.");
             }
         }
 
@@ -439,12 +441,12 @@ namespace WinSW
         /// True if the service should beep when finished on shutdown.
         /// This doesn't work on some OSes. See http://msdn.microsoft.com/en-us/library/ms679277%28VS.85%29.aspx
         /// </summary>
-        public override bool BeepOnShutdown => this.SingleBoolElementOrDefault("beeponshutdown", base.DelayedAutoStart);
+        public override bool BeepOnShutdown => this.SingleBoolElementOrDefault("beeponshutdown", base.BeepOnShutdown);
 
         /// <summary>
         /// True if the service can interact with the desktop.
         /// </summary>
-        public override bool Interactive => this.SingleBoolElementOrDefault("interactive", base.DelayedAutoStart);
+        public override bool Interactive => this.SingleBoolElementOrDefault("interactive", base.Interactive);
 
         /// <summary>
         /// Environment variable overrides
@@ -492,7 +494,7 @@ namespace WinSW
                 for (int i = 0; i < childNodes.Count; i++)
                 {
                     var node = childNodes[i]!;
-                    string action = node.Attributes!["action"]?.Value ?? throw new InvalidDataException("'action' is missing");
+                    string action = node.Attributes?["action"]?.Value ?? throw new InvalidDataException("'action' is missing");
                     var type = action switch
                     {
                         "restart" => SC_ACTION_TYPE.SC_ACTION_RESTART,
@@ -500,7 +502,7 @@ namespace WinSW
                         "reboot" => SC_ACTION_TYPE.SC_ACTION_REBOOT,
                         _ => throw new Exception("Invalid failure action: " + action)
                     };
-                    var delay = node.Attributes["delay"];
+                    var delay = node.Attributes?["delay"];
                     result[i] = new SC_ACTION(type, delay != null ? ParseTimeSpan(delay.Value) : TimeSpan.Zero);
                 }
 
@@ -610,13 +612,18 @@ namespace WinSW
 
         private Dictionary<string, string> LoadEnvironmentVariables()
         {
-            var nodeList = this.root.SelectNodes("env")!;
+            var nodeList = this.root.SelectNodes("env");
+            if (nodeList is null)
+            {
+                return new Dictionary<string, string>(0);
+            }
+
             var environment = new Dictionary<string, string>(nodeList.Count);
             for (int i = 0; i < nodeList.Count; i++)
             {
                 var node = nodeList[i]!;
-                string key = node.Attributes!["name"]?.Value ?? throw new InvalidDataException("'name' is missing");
-                string value = Environment.ExpandEnvironmentVariables(node.Attributes["value"]?.Value ?? throw new InvalidDataException("'value' is missing"));
+                string key = node.Attributes?["name"]?.Value ?? throw new InvalidDataException("'name' is missing");
+                string value = Environment.ExpandEnvironmentVariables(node.Attributes?["value"]?.Value ?? throw new InvalidDataException("'value' is missing"));
                 environment[key] = value;
 
                 Environment.SetEnvironmentVariable(key, value);

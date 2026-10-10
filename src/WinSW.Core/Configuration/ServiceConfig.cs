@@ -22,7 +22,14 @@ namespace WinSW.Configuration
 
         public abstract string Executable { get; }
 
-        public virtual string ExecutablePath => Process.GetCurrentProcess().MainModule!.FileName!;
+        public virtual string ExecutablePath
+        {
+            get
+            {
+                using var current = Process.GetCurrentProcess();
+                return current.MainModule?.FileName ?? throw new WinSWException("Failed to determine the path of the current executable.");
+            }
+        }
 
         public virtual bool HideWindow => false;
 

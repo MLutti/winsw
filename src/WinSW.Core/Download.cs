@@ -102,7 +102,7 @@ namespace WinSW
         private static void SetBasicAuthHeader(WebRequest request, string username, string password)
         {
             string authInfo = username + ":" + password;
-            authInfo = Convert.ToBase64String(Encoding.GetEncoding("ISO-8859-1").GetBytes(authInfo));
+            authInfo = Convert.ToBase64String(Encoding.Latin1.GetBytes(authInfo));
             request.Headers["Authorization"] = "Basic " + authInfo;
         }
 
@@ -173,7 +173,7 @@ namespace WinSW
                     await responseStream.CopyToAsync(tmpStream).ConfigureAwait(false);
                 }
 
-                FileHelper.MoveOrReplaceFile(this.To + ".tmp", this.To);
+                FileHelper.MoveOrReplaceFile(tmpFilePath, this.To);
 
                 if (supportsIfModifiedSince)
                 {
@@ -182,6 +182,18 @@ namespace WinSW
             }
             catch (WebException e)
             {
+                if (File.Exists(tmpFilePath))
+                {
+                    try
+                    {
+                        File.Delete(tmpFilePath);
+                    }
+                    catch (IOException)
+                    {
+                        // Best effort cleanup
+                    }
+                }
+
                 if (supportsIfModifiedSince && ((HttpWebResponse?)e.Response)?.StatusCode == HttpStatusCode.NotModified)
                 {
                     Logger.Info($"Skipped downloading unmodified resource '{this.From}'");

@@ -44,7 +44,17 @@ namespace WinSW.Util
         // The handle is to keep a reference to the process.
         internal static unsafe List<(Process Process, Handle Handle)> GetChildren(this Process process)
         {
-            var startTime = process.StartTime;
+            DateTime startTime;
+            try
+            {
+                startTime = process.StartTime;
+            }
+            catch (InvalidOperationException)
+            {
+                // The process has already exited.
+                return new List<(Process, Handle)>();
+            }
+
             int processId = process.Id;
 
             var children = new List<(Process Process, Handle Handle)>();
